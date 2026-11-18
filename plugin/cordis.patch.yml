@@ -1,0 +1,11 @@
+# dsh-zhihu-mini bundle patch.
+#
+# Inserts one Host row. The row id is the panel id used by the Client
+# (sidebar.panellist) and the route prefix is /zhihu-mini. The config is
+# validated against the plugin's exported Config; every field is optional.
+- insert:
+    - id: zhihu-mini
+      name: 'dsh-zhihu-mini'
+      config:
+        feedSize: 20
+        cacheTtlMs: 60000

@@ -1,0 +1,71 @@
+{
+  "name": "dsh-zhihu-mini",
+  "version": "0.2.0",
+  "type": "module",
+  "main": "./index.js",
+  "description": "ZhihuMini — a Zhihu sidebar for DeepSeek Harness (DSH): hot list, recommendations, search, question/answer reader, plus agent tools that read the panel state and navigate it.",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "zhihu.js",
+    "sanitize.js",
+    "store.js",
+    "trust.js",
+    "qr.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "vendor/",
+    "README.md",
+    "NOTES.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "license": "MIT",
+  "author": "ZhihuMini contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lizihan147/dsh-zhihu-mini.git"
+  },
+  "homepage": "https://github.com/lizihan147/dsh-zhihu-mini#readme",
+  "bugs": {
+    "url": "https://github.com/lizihan147/dsh-zhihu-mini/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "zhihu",
+    "sidebar",
+    "panel",
+    "agent-tools",
+    "sse"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "node --check index.js && node --check zhihu.js && node --check sanitize.js && node --check store.js && node --check trust.js && node --check qr.js && node --check client.js",
+    "prepublishOnly": "npm run check"
+  }
+}

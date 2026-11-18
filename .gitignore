@@ -1,0 +1,10 @@
+# Scratch: extracted reference plugin, DSH runtime internals, CDP scripts and screenshots
+.ref/
+
+# Plugin runtime data (may contain a Zhihu session cookie)
+plugin/data/
+
+# Local logs and archives
+*.log
+*.tgz
+node_modules/

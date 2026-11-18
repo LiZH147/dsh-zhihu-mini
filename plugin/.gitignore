@@ -1,0 +1,8 @@
+# Runtime data written by the Host half (store.js): never commit it.
+data/
+*.log
+.cache
+
+# Packaged/local artifacts
+node_modules/
+*.tgz
