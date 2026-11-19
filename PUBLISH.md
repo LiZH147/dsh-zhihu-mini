@@ -96,6 +96,44 @@ git push --follow-tags
 - **宿主代码变更需要重启 DSH**（只刷新页面不够）；链接安装时可以用插件行
   `setPluginEnabled` 关再开触发重新加载。
 
+## 6.5 排查：E403 "Two-factor authentication or granular access token with bypass 2fa enabled is required"
+
+这条报错**不是**权限或包名问题，而是：账号开了 2FA，而命令行用的 token 没有"绕过 2FA"的权利。
+当前机器状态（已核对）：npm 11.6.0、官方 registry 已登录为 `iizinan`、`~/.npmrc` 里有一个
+`//registry.npmjs.org/:_authToken=...`（普通 token，因此被拒）。
+
+### 方案 A：带一次性验证码发布（最快）
+
+```bash
+cd plugin
+npm publish --otp=123456      # 123456 换成验证器 App 里的 6 位码
+```
+
+### 方案 B：生成"可绕过 2FA"的 Granular Token（推荐，之后不用每次输码）
+
+1. 打开 https://www.npmjs.com/settings/iizinan/tokens → **Generate New Token** → **Granular Access Token**；
+2. Permissions: **Read and write**；
+3. Packages: 首次发布新包必须选 **All packages**（包还不存在，无法按包名授权；发布成功后可以再收窄）；
+4. **勾选 "Bypass two-factor authentication"** ← 这条就是报错要求的；
+5. 复制 `npm_...`，然后：
+
+```bash
+npm config set //registry.npmjs.org/:_authToken=npm_xxxxxxxx
+cd plugin && npm publish
+```
+
+> token 只写进 `~/.npmrc`（已在家目录，不在仓库里）。不要把 token 提交到任何文件；
+> CI 里用环境变量 `NODE_AUTH_TOKEN`。
+
+### 验证是否真的发出去了
+
+```bash
+npm view dsh-zhihu-mini version --registry=https://registry.npmjs.org
+npm view dsh-zhihu-mini dist.tarball --registry=https://registry.npmjs.org
+```
+
+两条都返回 0.2.0 才算成功。发布失败不会占用版本号，可以原样重试。
+
 ## 7. 发布前自检清单
 
 - [ ] `npm run check` 通过

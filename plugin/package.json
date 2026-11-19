@@ -41,11 +41,11 @@
   "author": "ZhihuMini contributors",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lizihan147/dsh-zhihu-mini.git"
+    "url": "git+https://github.com/LiZH147/dsh-zhihu-mini.git"
   },
-  "homepage": "https://github.com/lizihan147/dsh-zhihu-mini#readme",
+  "homepage": "https://github.com/LiZH147/dsh-zhihu-mini#readme",
   "bugs": {
-    "url": "https://github.com/lizihan147/dsh-zhihu-mini/issues"
+    "url": "https://github.com/LiZH147/dsh-zhihu-mini/issues"
   },
   "publishConfig": {
     "access": "public",
