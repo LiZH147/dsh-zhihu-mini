@@ -134,6 +134,26 @@ bash tools/e2e.sh               # 端到端（需 DSH 已启动并安装本插�
 - 所有本地路由校验回环 Host、拒绝跨站请求与跨源 Origin。
 - 发布产物里不含凭据：`files` 白名单已排除数据目录。
 
+## 兼容性
+
+| 项 | 状态 |
+|---|---|
+| 验证版本 | **DSH 0.2.2-rc.5**（`@deepseek-ai/dsh` 与桌面运行时同版本） |
+| 面板挂载 | `sidebar.panellist` 槽位正常，`window.__ModuleLoader__` 契约未变 |
+| 主题变量 | 面板使用的 14 个 `--dsw-alias-*` 变量全部可解析（自动跟随明暗主题） |
+| Agent 工具 | `zhihu_panel` / `zhihu_hot` / `zhihu_feed` / `zhihu_search` / `zhihu_read` / `zhihu_open` 全部正常 |
+| SSE 指令 | `/zhihu-mini/api/events` 可下发 `open` 指令，面板即时跳转 |
+| 登录 | 扫码登录与 Cookie 粘贴均正常，会话在升级后仍保持 |
+| 回归 | `smoke-host.mjs` 57 项、`e2e.sh` 38 项全部通过，控制台无 error/warning |
+
+DSH 0.2.2 带来两处与分发相关的变化（不影响运行时兼容）：
+
+1. **插件页改成两个标签**：`已安装` 与 `发现`。“发现”是内置插件市场，从插件索引（index）读取条目；
+   索引条目需要声明 `engines.dsh` 兼容区间，否则按钮会显示为不可安装。本仓库的条目样例见
+   [`market/plugin-entry.json`](./market/plugin-entry.json)；
+2. **桌面版 profile 由 Electron 独占**：npm CLI 会拒绝管理 `desktop` profile，桌面版请走
+   **插件 → 已安装 → 添加插件**（或 `发现` 里安装）。Web/headless 仍可用 `dsh plugin --profile web add`。
+
 ## 已知限制
 
 - 知乎接口与风控可能变化；Cookie 失效需重新登录；

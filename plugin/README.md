@@ -70,11 +70,12 @@ ZhihuMini 是一个面向 [DeepSeek Harness](https://github.com/deepseek-ai/deep
 ### 从 npm 安装（推荐）
 
 ```bash
-dsh plugin --profile desktop add dsh-zhihu-mini
-# 或者： dsh --profile web add dsh-zhihu-mini
+dsh plugin --profile web add dsh-zhihu-mini
 ```
 
-桌面版也可以在 **插件 → 添加插件** 里直接输入包名 `dsh-zhihu-mini`。
+**桌面版**由 Electron 管理 `desktop` profile，npm CLI 会拒绝它的插件管理请求，
+请在 **插件（Plugins）→ 已安装 → 添加插件** 里输入包名 `dsh-zhihu-mini`；
+DSH 0.2.2 起也可以先添加插件索引源，再到 **插件 → 发现** 里搜索安装。
 安装后刷新页面（宿主代码变更需要完整重启一次），然后在侧边栏找到 **知乎迷你**。
 
 ### 从源码 / 本地目录安装（开发）

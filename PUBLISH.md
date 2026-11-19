@@ -80,6 +80,27 @@ https://github.com/polang233/dsh-plugin-index/issues/new?template=plugin-add.yml
 表单里填：包名 `dsh-zhihu-mini`、仓库地址、许可证 MIT、一句话简介、分类（Integrations / UI）。
 通过后会出现在 dshopen.org 的插件页，用户也能在 DSH 的开放市场里搜到。
 
+## 5.1 让插件出现在 DSH 内置的「发现」里
+
+DSH 0.2.2 起，**插件 → 发现** 是一个内置插件市场：它从「插件索引」（一个 JSON 文件）读取条目，
+用户可以在 GUI 里搜索、看详情、一键安装。索引格式的规则写在 DSH 的 `dsh-plugin-market-index` 包里，
+关键约束：
+
+- 索引是 `format: 1` 的 JSON，`plugins[]` 里每个条目包含 `name` / `title{en,zh}` / `icon` /
+  `repository` / `homepage` / `metadata.category` / `versions[]` / `description{en,zh}`；
+- **每个 version 必须声明 `engines.dsh`**（例如 `">=0.2.1-0 <0.3.0-0"`）。缺了或不匹配，
+  用户在“发现”里看到的 Install 按钮是**禁用**的，提示“没有兼容当前 DSH 的版本”；
+- `source` 指 npm：`{ type: "npm", registry: "https://registry.npmjs.org/" }`（也可以指 Git 提交）；
+- `icon` 用相对索引地址的路径，或 `data:` 内联（≤32 KiB）。
+
+本仓库已经准备好一份可直接提交的条目：[`market/plugin-entry.json`](./market/plugin-entry.json)
+（内联了 SVG 图标、声明 `engines.dsh = ">=0.2.1-0 <0.3.0-0"`）。发布 npm 之后，把它登记到索引即可：
+
+1. 提交收录申请：https://github.com/polang233/dsh-plugin-index/issues/new?template=plugin-add.yml
+2. 或自建索引：把 `format: 1` 的 JSON 放到任意 HTTPS 地址，在 DSH 的「发现 → 管理索引源」里加入该地址。
+
+验证方式：在 **插件 → 发现** 里搜「知乎」，条目应显示版本、作者、仓库与安装按钮（不是禁用状态）。
+
 ## 6. 之后每次更新
 
 ```bash

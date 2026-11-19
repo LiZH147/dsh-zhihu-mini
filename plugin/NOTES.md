@@ -51,6 +51,22 @@ fresh. `zhihu_open` reports `delivered:false` when no SSE subscriber is connecte
   sees already-sanitized `contentHtml` plus a `contentText` projection.
 - Error logging is redacted; no telemetry, no third-party relay.
 
+## DSH 0.2.2-rc.5 compatibility (2026-11-19)
+
+Re-verified after the desktop app updated to `@deepseek-ai/dsh` 0.2.2-rc.5. Nothing in the
+plugin needed a code change: the panel still mounts through `sidebar.panellist`, the
+`window.__ModuleLoader__` client contract is unchanged, all 14 `--dsw-alias-*` tokens the
+stylesheet uses still resolve, the six agent tools answer, SSE commands still move the panel,
+and smoke (57) plus e2e (38) pass with no console error or warning.
+
+Two distribution-facing changes in 0.2.2 were adopted in the docs instead of the code:
+
+- The Plugins page now has **Installed** and **Discover** tabs; Discover reads plugin indexes,
+  and an index entry must declare `engines.dsh` or its Install button is disabled. A ready entry
+  lives in `market/plugin-entry.json`.
+- The `desktop` profile is Electron-owned: the npm CLI rejects plugin management for it, so the
+  desktop install path is **Plugins → Add plugin** (the earlier README claimed a CLI flag).
+
 ## Scrolling ownership (regression note)
 
 The harness gives a panel a fixed-height frame and clips it (its centre column is
