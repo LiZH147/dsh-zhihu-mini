@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "title": {
+    "en": "ZhihuMini local index",
+    "zh": "知乎迷你本地索引"
+  },
+  "description": {
+    "en": "A local index used to verify how DSH Discover reads an index source.",
+    "zh": "用于验证 DSH「发现」如何读取索引源的本地索引。"
+  },
+  "metadata": {
+    "categories": {
+      "interface": {
+        "title": {
+          "en": "Interface",
+          "zh": "界面"
+        }
+      },
+      "tools": {
+        "title": {
+          "en": "Tools",
+          "zh": "工具"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "dsh-zhihu-mini",
+      "title": {
+        "en": "ZhihuMini — Zhihu in the DSH sidebar",
+        "zh": "知乎迷你 · Zhihu 侧边栏"
+      },
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiIgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IlpoaWh1TWluaSI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9InpoaWh1TWluaVRpbGUiIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMmJhNmZmIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzAwODRmZiIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9Ijg4IiBoZWlnaHQ9Ijg4IiByeD0iMjIiIGZpbGw9InVybCgjemhpaHVNaW5pVGlsZSkiLz4KICA8cmVjdCB4PSIxNiIgeT0iMjIiIHdpZHRoPSI2NCIgaGVpZ2h0PSI0NiIgcng9IjE0IiBmaWxsPSIjZmZmZmZmIi8+CiAgPHBhdGggZD0iTTM2IDY0IEwzMSA4MCBMNTIgNjQgWiIgZmlsbD0iI2ZmZmZmZiIvPgogIDxjaXJjbGUgY3g9IjM0IiBjeT0iNDUiIHI9IjQuNiIgZmlsbD0iIzAwODRmZiIvPgogIDxjaXJjbGUgY3g9IjQ4IiBjeT0iNDUiIHI9IjQuNiIgZmlsbD0iIzAwODRmZiIvPgogIDxjaXJjbGUgY3g9IjYyIiBjeT0iNDUiIHI9IjQuNiIgZmlsbD0iIzAwODRmZiIvPgo8L3N2Zz4K",
+      "repository": {
+        "url": "https://github.com/LiZH147/dsh-zhihu-mini"
+      },
+      "homepage": "https://github.com/LiZH147/dsh-zhihu-mini#readme",
+      "metadata": {
+        "category": "interface",
+        "keywords": [
+          "dsh",
+          "dsh-plugin",
+          "deepseek-harness",
+          "zhihu",
+          "sidebar",
+          "panel",
+          "agent-tools",
+          "sse"
+        ]
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.1-0 <0.3.0-0"
+          },
+          "publishTimestamp": 1795010386
+        }
+      ],
+      "description": {
+        "en": "Zhihu hot list, recommendations, search, question/answer reader and QR sign-in in the DSH sidebar, plus six agent tools that read the panel state and navigate it. Browsing costs 0 tokens; cookies stay on the local Host.",
+        "zh": "在 DSH 侧边栏里刷知乎热榜、推荐、搜索与问答阅读，支持扫码登录；同时注册六个 Agent 工具，让 DSH 知道你正在看什么并驱动面板跳转。浏览不消耗 Token，Cookie 只留在本机。"
+      }
+    }
+  ]
+}

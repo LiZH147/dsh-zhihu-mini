@@ -90,6 +90,9 @@ DSH 0.2.2 起，**插件 → 发现** 是一个内置插件市场：它从「插
   `repository` / `homepage` / `metadata.category` / `versions[]` / `description{en,zh}`；
 - **每个 version 必须声明 `engines.dsh`**（例如 `">=0.2.1-0 <0.3.0-0"`）。缺了或不匹配，
   用户在“发现”里看到的 Install 按钮是**禁用**的，提示“没有兼容当前 DSH 的版本”；
+- **每个 version 还必须带 `publishTimestamp`**：整数、Unix 秒、范围 `[0, 10^11)`。缺了官方校验器会直接报
+  `$.plugins[0].versions[0].publishTimestamp must be an integer number of Unix seconds`——这是实测出来的
+  （目录收录时通常由生成器填，但**自建索引必须自己写**）；
 - `source` 指 npm：`{ type: "npm", registry: "https://registry.npmjs.org/" }`（也可以指 Git 提交）；
 - `icon` 用相对索引地址的路径，或 `data:` 内联（≤32 KiB）。
 
