@@ -261,6 +261,65 @@ export function apply(ctx, config = {}) {
     streamClients.delete(client);
   }
 
+  /**
+   * Routes that act on the saved Zhihu credentials.
+   *
+   * The trust fence only proves the shape of the request — a browser page on
+   * this origin, or anything that simply omits Origin/Referer. A local process
+   * can therefore reach these routes and read the user's personalised feed,
+   * sign the saved account out, or replace the stored cookie. They also require
+   * an authenticated DSH browser session.
+   */
+  const STATEFUL_PATHS = new Set([
+    PREFIX + '/api/feed',
+    PREFIX + '/api/search',
+    PREFIX + '/api/question',
+    PREFIX + '/api/login',
+    PREFIX + '/api/login/status',
+    PREFIX + '/api/login/cookie',
+    PREFIX + '/api/login/qr',
+    PREFIX + '/api/login/qr/status',
+  ]);
+
+  /** Handle to DSH's connection service, resolved lazily (it may register late). */
+  let connection = null;
+  function connectionService() {
+    if (connection !== null) return connection;
+    try {
+      connection = typeof ctx.get === 'function' ? ctx.get('connection') ?? null : null;
+    } catch {
+      connection = null;
+    }
+    return connection;
+  }
+
+  /**
+   * Verify the DSH browser session behind a stateful request.
+   *
+   * DSH issues a signed `dsh-auth-<authority>` cookie to its own page, and the
+   * connection service reports 403 for a fence failure and 401 when no valid
+   * session accompanies the request. A profile without that service (headless)
+   * has no browser session to verify, so the fence above stays the only gate
+   * there; NOTES.md records that degradation.
+   *
+   * @returns {boolean} whether the request may proceed
+   */
+  function allowStateful(req, res) {
+    const service = connectionService();
+    if (service === null || typeof service.requestRejection !== 'function') return true;
+    const rejection = service.requestRejection(req);
+    if (rejection === undefined) return true;
+    sendJson(res, rejection, {
+      ok: false,
+      code: rejection === 401 ? 'session-required' : 'forbidden',
+      error:
+        rejection === 401
+          ? 'this route acts on the saved Zhihu session and needs an authenticated DSH session'
+          : 'forbidden',
+    });
+    return false;
+  }
+
   const disposeRoute = ctx.webServer.register({
     kind: 'prefix',
     path: PREFIX,
@@ -273,6 +332,10 @@ export function apply(ctx, config = {}) {
         sendJson(res, 403, { ok: false, error: 'forbidden' });
         return;
       }
+
+      // Stateful routes carry a second gate: the fence says "a page on this
+      // origin", the DSH session says "this installation's user".
+      if (STATEFUL_PATHS.has(url.pathname) && !allowStateful(req, res)) return;
 
       try {
         if (url.pathname === PREFIX + '/api/events') {

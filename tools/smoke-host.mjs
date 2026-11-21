@@ -540,7 +540,23 @@ const fakeCtx = {
     fakeCtx.__dispose = typeof disposer === 'function' ? disposer : undefined;
     return () => {};
   },
+  /**
+   * Stand-in for DSH's `connection` service. `requestRejection` reports 401 while
+   * `gate.deny` is set, which is exactly what the harness returns for a request
+   * without a valid `dsh-auth-` browser session.
+   */
+  get(name) {
+    if (name !== 'connection') return undefined;
+    return {
+      requestRejection() {
+        return gate.deny ? 401 : undefined;
+      },
+    };
+  },
 };
+
+/** Controls the fake DSH session verdict. */
+const gate = { deny: false };
 
 indexModule.apply(fakeCtx, { feedSize: 20, cacheTtlMs: 60000 });
 assert.ok(fakeCtx.__route, 'route registered inside apply()');
@@ -685,6 +701,30 @@ try {
   assert.equal(feed.json.source, 'feed');
   checks += 1;
   console.log('ok   GET /api/feed serves the anonymous recommendation feed');
+
+  /* --------------------------------------------- DSH-session gate */
+  // The trust fence alone lets any local process reach these routes. With no
+  // valid DSH session they must answer 401 and change nothing.
+  gate.deny = true;
+  const gatedFeed = await request('/zhihu-mini/api/feed');
+  assert.equal(gatedFeed.status, 401);
+  assert.equal(gatedFeed.json.code, 'session-required');
+  const gatedStatus = await request('/zhihu-mini/api/login/status');
+  assert.equal(gatedStatus.status, 401);
+  const gatedSearch = await request('/zhihu-mini/api/search?q=hi');
+  assert.equal(gatedSearch.status, 401);
+  const gatedLogout = await request('/zhihu-mini/api/login', { method: 'DELETE' });
+  assert.equal(gatedLogout.status, 401);
+  // Anonymous browse and credential-free panel state stay on the fence alone.
+  const gatedHot = await request('/zhihu-mini/api/hot?limit=1');
+  assert.equal(gatedHot.status, 200);
+  const gatedPanel = await request('/zhihu-mini/api/panel');
+  assert.equal(gatedPanel.status, 200);
+  gate.deny = false;
+  const openFeed = await request('/zhihu-mini/api/feed');
+  assert.equal(openFeed.status, 200);
+  checks += 1;
+  console.log('ok   stateful routes answer 401 without a DSH session; hot/panel stay open');
 
   /* ------------------------------------------------ login-required routes */
 

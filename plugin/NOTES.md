@@ -51,6 +51,31 @@ fresh. `zhihu_open` reports `delivered:false` when no SSE subscriber is connecte
   sees already-sanitized `contentHtml` plus a `contentText` projection.
 - Error logging is redacted; no telemetry, no third-party relay.
 
+## DSH-session gate on stateful routes (0.2.2)
+
+Market review for 0.2.1 confirmed the Host/Origin fence and asked for one more thing: routes that
+act on the saved Zhihu login state must verify the **DSH session**, especially the feed, sign-in and
+sign-out entry points. The fence cannot do that — it answers "does this look like a request from a
+page this server hosts?", and it deliberately allows requests with no browser markers at all, which
+is exactly what a local `curl` sends. Measured before the change, with no Origin header:
+`GET /api/feed` → 200 (personalised data), `GET /api/login/status` → 200, `DELETE /api/login` and
+`POST /api/login/cookie` reachable. So any local process could read the signed-in feed, sign the
+account out, or replace the stored cookie with its own.
+
+`connection.requestRejection(req)` is the harness's own answer: it applies the fence and then
+requires a signed `dsh-auth-<authority>` cookie, returning `undefined` / `403` / `401`. The eight
+credential-touching routes now answer **401 `session-required`** without that session; `/api/hot`
+stays anonymous and `/api/panel` + `/api/events` stay on the fence (no credentials involved).
+
+Verified live: no-cookie `curl` gets 401 on feed / login-status / logout while `hot` and `panel`
+still answer 200; a forged session cookie gets 200; and the real panel (which sends `dsh-auth-…`
+on every `/zhihu-mini/api/*` request — checked over CDP `requestWillBeSentExtraInfo`) loads hot,
+feed and search with zero 4xx and no console errors.
+
+Degradation: a profile without the `connection` service has no browser session to verify, so the
+fence stays the only gate there. That is recorded rather than silently failing closed, because a
+headless profile would otherwise lose every stateful route.
+
 ## DSH 0.2.2-rc.5 compatibility (2026-11-19)
 
 Re-verified after the desktop app updated to `@deepseek-ai/dsh` 0.2.2-rc.5. Nothing in the

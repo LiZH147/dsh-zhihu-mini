@@ -144,9 +144,36 @@ elif [ "$(curl -s -m 4 -o /dev/null -w '%{http_code}' "$BASE_URL/" 2>/dev/null)"
   warn "nothing answers at $BASE_URL (DSH not running?)"
 else
   echo "  target: $BASE_URL"
+
+  # Stateful routes require an authenticated DSH browser session. Derive the same
+  # signed cookie DSH hands its own page, so the live probes exercise the real
+  # path; when that is impossible the gate checks below still run.
+  SESSION_COOKIE=$(node - "$BASE_URL" <<'JS' 2>/dev/null || true
+const fs = require('node:fs')
+const path = require('node:path')
+const crypto = require('node:crypto')
+const url = new URL(process.argv[2])
+const authority = url.host
+const home = process.env.USERPROFILE || process.env.HOME || ''
+const file = path.join(home, '.dsh', '.credentials.yaml')
+const text = fs.readFileSync(file, 'utf8')
+const m = text.match(/client-connection\/browser-session:[\s\S]*?secret:\s*([A-Za-z0-9_-]+)/)
+if (!m) process.exit(0)
+const secret = Buffer.from(m[1].replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - (m[1].length % 4)) % 4), 'base64')
+const b64u = (b) => Buffer.from(b).toString('base64').replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
+const name = 'dsh-auth-' + b64u(crypto.createHash('sha256').update(authority).digest())
+const now = Date.now()
+const body = b64u(Buffer.from(JSON.stringify({ version: 1, authority, issuedAt: now, expiresAt: now + 3600000 }), 'utf8'))
+const value = 'v1.' + body + '.' + b64u(crypto.createHmac('sha256', secret).update(body).digest())
+process.stdout.write(name + '=' + value)
+JS
+)
+  AUTH=()
+  if [ -n "${SESSION_COOKIE:-}" ]; then AUTH=(-H "Cookie: $SESSION_COOKIE"); else warn "no DSH session cookie available; stateful probes will report the gate"; fi
+
   probe() { # name, path, expected-substring
     local name="$1" path="$2" needle="$3" body code
-    body=$(curl -sS -m 15 -w '\n%{http_code}' "$BASE_URL$path" 2>&1)
+    body=$(curl -sS -m 15 -w '\n%{http_code}' "${AUTH[@]}" "$BASE_URL$path" 2>&1)
     code=$(printf '%s' "$body" | tail -n 1)
     if [ "$code" != "200" ]; then bad "$name -> HTTP $code"; return; fi
     if printf '%s' "$body" | grep -q "$needle"; then ok "$name -> 200 containing $needle"; else bad "$name -> 200 but no '$needle'"; fi
@@ -173,7 +200,7 @@ else
   # limit is honoured locally (upstream ignores ?limit= for topstory endpoints).
   lim() { # path, expected-max
     local path="$1" max="$2" n
-    n=$(curl -sS -m 20 -H "Origin: $BASE_URL" "$BASE_URL$path" 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String((j.items||[]).length))}catch{process.stdout.write("?")}})')
+    n=$(curl -sS -m 20 "${AUTH[@]}" -H "Origin: $BASE_URL" "$BASE_URL$path" 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String((j.items||[]).length))}catch{process.stdout.write("?")}})')
     case "$n" in
       ''|'?') bad "$path -> unparsable item count" ;;
       *) if [ "$n" -le "$max" ]; then ok "$path -> $n items (<= $max)"; else bad "$path -> $n items (> $max); limit not applied"; fi ;;
@@ -185,7 +212,7 @@ else
   # Absent limit must fall back to the documented default (30 hot / feedSize feed), not to 1.
   deflim() { # path, minimum-acceptable-item-count
     local path="$1" min="$2" n
-    n=$(curl -sS -m 20 -H "Origin: $BASE_URL" "$BASE_URL$path" 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String((j.items||[]).length))}catch{process.stdout.write("?")}})')
+    n=$(curl -sS -m 20 "${AUTH[@]}" -H "Origin: $BASE_URL" "$BASE_URL$path" 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String((j.items||[]).length))}catch{process.stdout.write("?")}})')
     case "$n" in
       ''|'?') bad "$path (no limit) -> unparsable item count" ;;
       *) if [ "$n" -ge "$min" ]; then ok "$path (no limit) -> $n items (>= $min)"; else bad "$path (no limit) -> $n items (< $min); default limit not applied"; fi ;;
@@ -232,6 +259,27 @@ else
   else
     bad "GET /api/events did not return text/event-stream"
   fi
+
+  # The second gate: a caller with no DSH session must not touch the saved Zhihu
+  # credentials, even though the trust fence would accept it.
+  gatecheck() { # name, curl args...
+    local name="$1"; shift
+    local out code
+    out=$(curl -sS -m 10 -w '\n%{http_code}' "$@" 2>/dev/null)
+    code=$(printf '%s' "$out" | tail -n 1)
+    if [ "$code" = "401" ] && printf '%s' "$out" | grep -q 'session-required'; then
+      ok "$name -> 401 session-required"
+    else
+      bad "$name -> HTTP $code (expected 401 + session-required)"
+    fi
+  }
+  gatecheck "no-session GET /api/feed"          "$BASE_URL/zhihu-mini/api/feed"
+  gatecheck "no-session GET /api/search"        "$BASE_URL/zhihu-mini/api/search?q=e2e"
+  gatecheck "no-session GET /api/login/status"  "$BASE_URL/zhihu-mini/api/login/status"
+  gatecheck "no-session DELETE /api/login"      -X DELETE "$BASE_URL/zhihu-mini/api/login"
+  # A fence-only route still answers: anonymous browsing must keep working.
+  code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "$BASE_URL/zhihu-mini/api/hot?limit=2" 2>/dev/null)
+  if [ "$code" = "200" ]; then ok "GET /api/hot stays anonymous (HTTP 200)"; else bad "GET /api/hot -> HTTP $code with no session"; fi
 
   code=$(curl -sS -m 5 -o /dev/null -w '%{http_code}' -X POST \
     -H 'Content-Type: application/json' -H 'Origin: https://evil.example' -H 'Sec-Fetch-Site: cross-site' \

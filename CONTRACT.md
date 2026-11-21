@@ -27,6 +27,16 @@ DSH can *talk about what is on the panel right now* (panel state snapshot + read
 - `POST /api/panel` body PanelState → `{ ok:true }` (panel reports what the user is looking at)
 - `GET  /api/events` (text/event-stream) → SSE, each message is `data: <json>\n\n`; event objects `{type:'open', view, questionId?, query?}` and `{type:'ping'}` every 25s
 - Missing login on a login-only route → HTTP 200 with `{ ok:false, code:'login-required', error:"..." }` (never a 500; the panel shows the login card).
+- **Two gates, two questions.** Every route first runs the loopback trust fence (Host is a loopback
+  authority, no `Sec-Fetch-Site: cross-site`, Origin/Referer same-origin when present). Routes that
+  act on the stored Zhihu credentials — `/api/feed`, `/api/search`, `/api/question`, `/api/login`,
+  `/api/login/status`, `/api/login/cookie`, `/api/login/qr`, `/api/login/qr/status` — additionally
+  require an authenticated DSH browser session, verified through DSH's `connection` service
+  (`requestRejection(req)` → `undefined` allow, `403` fence failure, `401` no session). A request
+  without that session answers HTTP **401** with `{ ok:false, code:'session-required', error }`.
+  `/api/hot` stays anonymous (the panel browses without login), and `/api/panel` + `/api/events`
+  carry no credentials and stay on the fence alone. Without the `connection` service (headless
+  profiles have no browser session) the fence is the only gate; see NOTES.md.
 
 ## Data shapes
 ```ts
