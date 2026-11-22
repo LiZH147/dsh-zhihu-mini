@@ -72,9 +72,22 @@ still answer 200; a forged session cookie gets 200; and the real panel (which se
 on every `/zhihu-mini/api/*` request — checked over CDP `requestWillBeSentExtraInfo`) loads hot,
 feed and search with zero 4xx and no console errors.
 
-Degradation: a profile without the `connection` service has no browser session to verify, so the
-fence stays the only gate there. That is recorded rather than silently failing closed, because a
-headless profile would otherwise lose every stateful route.
+**0.2.3 — the gate fails closed.** Review of 0.2.2 asked that a missing `connection` service, or a
+service with no usable verification method, must also refuse account-related requests instead of
+falling back to the fence alone. The earlier build allowed them there (documented as a headless
+degradation), which meant a profile without the verifier silently had no session gate at all — the
+exact hole the fence cannot close. Now:
+
+- no service, no `requestRejection`, or a check that throws → HTTP **503 `session-unavailable`**
+  (distinct from 401 `session-required`, so a client can tell "cannot verify" from "not authenticated");
+- the service is re-resolved per request, so a late registration unblocks the routes without a
+  restart and a stale miss never latches the gate shut;
+- `/api/hot` stays available in every case (anonymous browsing does not touch credentials);
+- one warning per process names why the verifier is unavailable.
+
+Verified in `tools/smoke-host.mjs`: with the fake connection removed the feed and logout answer 503
+while hot still answers 200, a throwing check answers 503, and the gate recovers to 200 once the
+check works again (59 checks). Live host behaviour is unchanged: no cookie → 401, valid cookie → 200.
 
 ## DSH 0.2.2-rc.5 compatibility (2026-11-19)
 

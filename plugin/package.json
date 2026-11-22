@@ -1,6 +1,6 @@
 {
   "name": "dsh-zhihu-mini",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "type": "module",
   "main": "./index.js",
   "description": "ZhihuMini — a Zhihu sidebar for DeepSeek Harness (DSH): hot list, recommendations, search, question/answer reader, plus agent tools that read the panel state and navigate it.",

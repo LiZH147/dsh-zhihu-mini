@@ -547,16 +547,23 @@ const fakeCtx = {
    */
   get(name) {
     if (name !== 'connection') return undefined;
+    if (gate.missing) return undefined;
     return {
       requestRejection() {
+        if (gate.throws) throw new Error('verification unavailable');
         return gate.deny ? 401 : undefined;
       },
     };
   },
 };
 
-/** Controls the fake DSH session verdict. */
-const gate = { deny: false };
+/**
+ * Controls the fake DSH session verdict:
+ *   deny    — a well-formed but unauthenticated request (401)
+ *   missing — the profile exposes no connection service at all
+ *   throws  — the service exists but its check fails
+ */
+const gate = { deny: false, missing: false, throws: false };
 
 indexModule.apply(fakeCtx, { feedSize: 20, cacheTtlMs: 60000 });
 assert.ok(fakeCtx.__route, 'route registered inside apply()');
@@ -725,6 +732,26 @@ try {
   assert.equal(openFeed.status, 200);
   checks += 1;
   console.log('ok   stateful routes answer 401 without a DSH session; hot/panel stay open');
+
+  // Fail closed: an unverifiable profile must not fall back to the fence alone.
+  gate.missing = true;
+  const noServiceFeed = await request('/zhihu-mini/api/feed');
+  assert.equal(noServiceFeed.status, 503);
+  assert.equal(noServiceFeed.json.code, 'session-unavailable');
+  const noServiceLogout = await request('/zhihu-mini/api/login', { method: 'DELETE' });
+  assert.equal(noServiceLogout.status, 503);
+  const noServiceHot = await request('/zhihu-mini/api/hot?limit=1');
+  assert.equal(noServiceHot.status, 200, 'anonymous hot stays available without a verifier');
+  gate.missing = false;
+  gate.throws = true;
+  const brokenFeed = await request('/zhihu-mini/api/feed');
+  assert.equal(brokenFeed.status, 503);
+  assert.equal(brokenFeed.json.code, 'session-unavailable');
+  gate.throws = false;
+  const recoveredFeed = await request('/zhihu-mini/api/feed');
+  assert.equal(recoveredFeed.status, 200, 'the gate recovers once verification works again');
+  checks += 1;
+  console.log('ok   without a usable session verifier, account routes answer 503 and never fall back');
 
   /* ------------------------------------------------ login-required routes */
 

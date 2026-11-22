@@ -145,7 +145,7 @@ plugin_manager({ action: "install_bundle", target: "<repo>/plugin" })
 | 权限 | POSIX 下数据目录 0700、Cookie 文件 0600（best-effort）；Windows 交给用户目录 ACL |
 | 网络范围 | 带 Cookie 的请求只发往 `*.zhihu.com` |
 | 路由信任 | 所有 `/zhihu-mini` 路由校验回环 Host、拒绝跨站 `Sec-Fetch-Site`、校验同源 Origin/Referer |
-| 会话校验 | 用到已保存登录态的接口（信息流 / 搜索 / 回答 / 登录 / 退出 / 扫码）额外校验 **DSH 会话**，无会话返回 401 `session-required`；热榜与面板状态只过信任栅栏 |
+| 会话校验 | 用到已保存登录态的接口（信息流 / 搜索 / 回答 / 登录 / 退出 / 扫码）额外校验 **DSH 会话**：无会话 → 401 `session-required`；宿主无法校验会话 → 503 `session-unavailable`（**失败即拒绝**，不退回只查来源）；热榜与面板状态只过信任栅栏 |
 | HTML 清洗 | 回答正文在 Host 侧白名单清洗（保留 p/br/strong/em/a/h1-h6/ul/ol/li/blockquote/code/pre/img/figure/figcaption/hr/table 等），去掉 script/style/on* |
 | 日志 | 错误信息脱敏；不打印 Cookie |
 | 退出登录 | 删除本地 Cookie 文件并清空缓存 |

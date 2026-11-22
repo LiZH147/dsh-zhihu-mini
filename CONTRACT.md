@@ -35,8 +35,12 @@ DSH can *talk about what is on the panel right now* (panel state snapshot + read
   (`requestRejection(req)` → `undefined` allow, `403` fence failure, `401` no session). A request
   without that session answers HTTP **401** with `{ ok:false, code:'session-required', error }`.
   `/api/hot` stays anonymous (the panel browses without login), and `/api/panel` + `/api/events`
-  carry no credentials and stay on the fence alone. Without the `connection` service (headless
-  profiles have no browser session) the fence is the only gate; see NOTES.md.
+  carry no credentials and stay on the fence alone.
+- **The session check fails closed.** A profile that exposes no `connection` service, a service
+  without `requestRejection`, or a check that throws is *not* treated as permission: those routes
+  answer HTTP **503** with `{ ok:false, code:'session-unavailable', error }` instead of degrading to
+  the fence. `session-required` (401) means "authenticate"; `session-unavailable` (503) means "this
+  profile cannot verify at all". `/api/hot` keeps working in both cases.
 
 ## Data shapes
 ```ts

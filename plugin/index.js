@@ -281,16 +281,30 @@ export function apply(ctx, config = {}) {
     PREFIX + '/api/login/qr/status',
   ]);
 
-  /** Handle to DSH's connection service, resolved lazily (it may register late). */
-  let connection = null;
+  /**
+   * Handle to DSH's connection service.
+   *
+   * Resolved per request on purpose: the service may register after this plugin
+   * applies, and a stale miss must not latch the gate into refusing forever.
+   */
   function connectionService() {
-    if (connection !== null) return connection;
     try {
-      connection = typeof ctx.get === 'function' ? ctx.get('connection') ?? null : null;
+      return typeof ctx.get === 'function' ? ctx.get('connection') ?? null : null;
     } catch {
-      connection = null;
+      return null;
     }
-    return connection;
+  }
+
+  /** Warn once when this profile cannot verify sessions at all. */
+  let warnedNoVerifier = false;
+  function warnNoVerifier(detail) {
+    if (warnedNoVerifier) return;
+    warnedNoVerifier = true;
+    ctx.logger?.warn?.(
+      '[zhihu-mini] cannot verify DSH sessions (' +
+        detail +
+        '); account-related routes answer 503 until the connection service is available',
+    );
   }
 
   /**
@@ -298,16 +312,45 @@ export function apply(ctx, config = {}) {
    *
    * DSH issues a signed `dsh-auth-<authority>` cookie to its own page, and the
    * connection service reports 403 for a fence failure and 401 when no valid
-   * session accompanies the request. A profile without that service (headless)
-   * has no browser session to verify, so the fence above stays the only gate
-   * there; NOTES.md records that degradation.
+   * session accompanies the request.
+   *
+   * This check **fails closed**. If the profile does not expose the connection
+   * service, or that service has no usable verification method, these routes
+   * refuse instead of falling back to the trust fence alone: the fence cannot
+   * tell a browser page from a local process, and letting it stand in would hand
+   * the signed-in feed, sign-out and cookie replacement to any local caller.
+   * `session-unavailable` (503) names that case, so a client can tell "this
+   * profile cannot verify" from "you are not authenticated".
    *
    * @returns {boolean} whether the request may proceed
    */
   function allowStateful(req, res) {
     const service = connectionService();
-    if (service === null || typeof service.requestRejection !== 'function') return true;
-    const rejection = service.requestRejection(req);
+    if (service === null || typeof service.requestRejection !== 'function') {
+      warnNoVerifier(service === null ? 'no connection service' : 'no requestRejection method');
+      sendJson(res, 503, {
+        ok: false,
+        code: 'session-unavailable',
+        error:
+          'this DSH profile cannot verify the session behind the saved Zhihu credentials ' +
+          '(no connection service), so account-related routes are refused',
+      });
+      return false;
+    }
+    let rejection;
+    try {
+      rejection = service.requestRejection(req);
+    } catch (error) {
+      // A throwing verification is a failed verification, never a pass.
+      const message = error instanceof Error ? error.message : String(error);
+      warnNoVerifier('requestRejection threw: ' + message);
+      sendJson(res, 503, {
+        ok: false,
+        code: 'session-unavailable',
+        error: 'the DSH session check failed: ' + message,
+      });
+      return false;
+    }
     if (rejection === undefined) return true;
     sendJson(res, rejection, {
       ok: false,
