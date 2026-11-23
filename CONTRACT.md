@@ -31,9 +31,11 @@ DSH can *talk about what is on the panel right now* (panel state snapshot + read
   authority, no `Sec-Fetch-Site: cross-site`, Origin/Referer same-origin when present). Routes that
   act on the stored Zhihu credentials — `/api/feed`, `/api/search`, `/api/question`, `/api/login`,
   `/api/login/status`, `/api/login/cookie`, `/api/login/qr`, `/api/login/qr/status` — additionally
-  require an authenticated DSH browser session, verified through DSH's `connection` service
-  (`requestRejection(req)` → `undefined` allow, `403` fence failure, `401` no session). A request
-  without that session answers HTTP **401** with `{ ok:false, code:'session-required', error }`.
+  require an authenticated DSH browser session. The check tries every documented harness shape,
+  newest first: `connection.authentication.authenticate(req)` (0.2.3+, `PeerAdmission`),
+  `connection.admit(req)` (`{ peer }` or `{ rejection }`, present in both generations), then 0.2.2's
+  `connection.requestRejection(req)` (bare status). A request without that session answers HTTP
+  **401** with `{ ok:false, code:'session-required', error }`.
   `/api/hot` stays anonymous (the panel browses without login), and `/api/panel` + `/api/events`
   carry no credentials and stay on the fence alone.
 - **The session check fails closed.** A profile that exposes no `connection` service, a service

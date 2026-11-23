@@ -546,24 +546,48 @@ const fakeCtx = {
    * without a valid `dsh-auth-` browser session.
    */
   get(name) {
-    if (name !== 'connection') return undefined;
     if (gate.missing) return undefined;
-    return {
-      requestRejection() {
-        if (gate.throws) throw new Error('verification unavailable');
-        return gate.deny ? 401 : undefined;
-      },
-    };
+    if (name === 'connection.authentication' && gate.api === 'authentication') {
+      return {
+        authenticate() {
+          if (gate.throws) throw new Error('verification unavailable');
+          return gate.deny ? { rejection: 401 } : { peer: { id: 'smoke-peer' } };
+        },
+      };
+    }
+    if (name === 'connection') {
+      // 0.2.3 keeps `admit` next to the authentication sub-service.
+      if (gate.api === 'authentication') return {};
+      if (gate.api === 'admit') {
+        return {
+          admit() {
+            if (gate.throws) throw new Error('verification unavailable');
+            return gate.deny ? { rejection: 401 } : { peer: { id: 'smoke-peer' } };
+          },
+        };
+      }
+      // 0.2.2 only has requestRejection, which answers with a bare status.
+      return {
+        requestRejection() {
+          if (gate.throws) throw new Error('verification unavailable');
+          return gate.deny ? 401 : undefined;
+        },
+      };
+    }
+    return undefined;
   },
 };
 
 /**
- * Controls the fake DSH session verdict:
- *   deny    — a well-formed but unauthenticated request (401)
- *   missing — the profile exposes no connection service at all
- *   throws  — the service exists but its check fails
+ * Controls the fake DSH session verdict.
+ *
+ * api picks which harness generation to imitate:
+ *   'authentication' — 0.2.3 `connection.authentication.authenticate` (PeerAdmission)
+ *   'admit'          — `connection.admit` (PeerAdmission, present in both)
+ *   'legacy'         — 0.2.2 `connection.requestRejection` (bare status)
+ * deny/missing/throws cover unauthenticated, unverifiable and failing hosts.
  */
-const gate = { deny: false, missing: false, throws: false };
+const gate = { deny: false, missing: false, throws: false, api: 'authentication' };
 
 indexModule.apply(fakeCtx, { feedSize: 20, cacheTtlMs: 60000 });
 assert.ok(fakeCtx.__route, 'route registered inside apply()');
@@ -752,6 +776,23 @@ try {
   assert.equal(recoveredFeed.status, 200, 'the gate recovers once verification works again');
   checks += 1;
   console.log('ok   without a usable session verifier, account routes answer 503 and never fall back');
+
+  // One build must serve every harness generation: 0.2.3 authentication sub-service,
+  // `admit` (both), and 0.2.2's bare-number `requestRejection`.
+  for (const api of ['authentication', 'admit', 'legacy']) {
+    gate.api = api;
+    gate.deny = false;
+    const allowed = await request('/zhihu-mini/api/feed');
+    assert.equal(allowed.status, 200, api + ': authenticated request is admitted');
+    gate.deny = true;
+    const denied = await request('/zhihu-mini/api/feed');
+    assert.equal(denied.status, 401, api + ': unauthenticated request is refused');
+    assert.equal(denied.json.code, 'session-required', api + ': distinct code');
+  }
+  gate.api = 'authentication';
+  gate.deny = false;
+  checks += 1;
+  console.log('ok   the gate accepts the 0.2.2 and 0.2.3 session APIs alike');
 
   /* ------------------------------------------------ login-required routes */
 

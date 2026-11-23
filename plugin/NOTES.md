@@ -89,6 +89,27 @@ Verified in `tools/smoke-host.mjs`: with the fake connection removed the feed an
 while hot still answers 200, a throwing check answers 503, and the gate recovers to 200 once the
 check works again (59 checks). Live host behaviour is unchanged: no cookie → 401, valid cookie → 200.
 
+## Session API across DSH generations (2026-11-23)
+
+The desktop app still runs `@deepseek-ai/dsh` **0.2.2-rc.5** (the resources/app.asar on this
+machine is dated 2026-11-18 and the staged installer in the updater cache is the same version), and
+the plugin re-passes smoke 60 + e2e 43 there. But `@deepseek-ai/dsh-client-connection`
+**0.2.3-alpha.2** on npm already removes the call the gate was built on:
+
+- gone: `HostConnectionService.requestRejection(request)`;
+- added: a `connection.authentication` sub-service (`ConnectionAuthentication`) whose
+  `authenticate(request)` returns `PeerAdmission = { peer } | { rejection: 401 | 403 | 503 }`;
+  `connection.admit(request)` stays and now delegates to it.
+
+A gate that only called `requestRejection` would therefore have hit its fail-closed branch on every
+account route the day 0.2.3 ships — 503 on feed/search/read with the session perfectly valid. The
+gate now asks, in order, `connection.authentication.authenticate`, `connection.admit`, then
+`connection.requestRejection`, normalizes `{ peer }` / `{ rejection }` / bare numbers to one verdict,
+and keeps every refusal closed (401 `session-required`, 403 `forbidden`, 503 `session-unavailable`).
+
+Coverage: `tools/smoke-host.mjs` fakes all three generations and asserts admit-vs-refuse on each;
+the live 0.2.2-rc.5 host now passes through `admit`, verified by the e2e gate checks (43 pass).
+
 ## DSH 0.2.2-rc.5 compatibility (2026-11-19)
 
 Re-verified after the desktop app updated to `@deepseek-ai/dsh` 0.2.2-rc.5. Nothing in the

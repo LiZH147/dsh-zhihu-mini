@@ -282,17 +282,66 @@ export function apply(ctx, config = {}) {
   ]);
 
   /**
-   * Handle to DSH's connection service.
+   * Read one harness service by name.
    *
-   * Resolved per request on purpose: the service may register after this plugin
+   * Resolved per request on purpose: services may register after this plugin
    * applies, and a stale miss must not latch the gate into refusing forever.
+   * @param {string} name
    */
-  function connectionService() {
+  function serviceOf(name) {
     try {
-      return typeof ctx.get === 'function' ? ctx.get('connection') ?? null : null;
+      return typeof ctx.get === 'function' ? ctx.get(name) ?? null : null;
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Normalize the harness's admission shapes to one verdict.
+   *
+   * DSH reports credentials in two shapes across versions:
+   *   - `PeerAdmission`: `{ peer }` or `{ rejection: 401 | 403 | 503 }`
+   *     (0.2.3 `connection.authentication.authenticate` / `connection.admit`);
+   *   - a bare status number from 0.2.2's `connection.requestRejection`.
+   * `undefined` means admitted; `'unavailable'` means nothing could be asked.
+   * @param {unknown} value
+   * @returns {number | undefined | 'unavailable'}
+   */
+  function admissionVerdict(value) {
+    if (value === undefined) return undefined;
+    if (typeof value === 'number') return value;
+    if (value !== null && typeof value === 'object') {
+      if ('rejection' in value) {
+        const rejection = value.rejection;
+        return typeof rejection === 'number' ? rejection : 'unavailable';
+      }
+      if ('peer' in value) return undefined;
+    }
+    return 'unavailable';
+  }
+
+  /**
+   * Verify the DSH session behind a request, newest API first.
+   *
+   * 0.2.3 replaced `requestRejection` with a `connection.authentication`
+   * sub-service and moved admission onto `PeerAdmission`; 0.2.2 only has
+   * `requestRejection`. Every documented shape is tried so one build serves both.
+   * @param {import('node:http').IncomingMessage} req
+   * @returns {number | undefined | 'unavailable'}
+   */
+  function sessionVerdict(req) {
+    const authentication = serviceOf('connection.authentication');
+    if (authentication !== null && typeof authentication.authenticate === 'function') {
+      return admissionVerdict(authentication.authenticate(req));
+    }
+    const connection = serviceOf('connection');
+    if (connection !== null && typeof connection.admit === 'function') {
+      return admissionVerdict(connection.admit(req));
+    }
+    if (connection !== null && typeof connection.requestRejection === 'function') {
+      return admissionVerdict(connection.requestRejection(req));
+    }
+    return 'unavailable';
   }
 
   /** Warn once when this profile cannot verify sessions at all. */
@@ -325,25 +374,13 @@ export function apply(ctx, config = {}) {
    * @returns {boolean} whether the request may proceed
    */
   function allowStateful(req, res) {
-    const service = connectionService();
-    if (service === null || typeof service.requestRejection !== 'function') {
-      warnNoVerifier(service === null ? 'no connection service' : 'no requestRejection method');
-      sendJson(res, 503, {
-        ok: false,
-        code: 'session-unavailable',
-        error:
-          'this DSH profile cannot verify the session behind the saved Zhihu credentials ' +
-          '(no connection service), so account-related routes are refused',
-      });
-      return false;
-    }
-    let rejection;
+    let verdict;
     try {
-      rejection = service.requestRejection(req);
+      verdict = sessionVerdict(req);
     } catch (error) {
       // A throwing verification is a failed verification, never a pass.
       const message = error instanceof Error ? error.message : String(error);
-      warnNoVerifier('requestRejection threw: ' + message);
+      warnNoVerifier('session verification threw: ' + message);
       sendJson(res, 503, {
         ok: false,
         code: 'session-unavailable',
@@ -351,14 +388,35 @@ export function apply(ctx, config = {}) {
       });
       return false;
     }
-    if (rejection === undefined) return true;
-    sendJson(res, rejection, {
+    if (verdict === undefined) return true;
+    if (verdict === 'unavailable') {
+      warnNoVerifier('no connection authentication service');
+      sendJson(res, 503, {
+        ok: false,
+        code: 'session-unavailable',
+        error:
+          'this DSH profile cannot verify the session behind the saved Zhihu credentials ' +
+          '(no connection authentication service), so account-related routes are refused',
+      });
+      return false;
+    }
+    if (verdict === 401) {
+      sendJson(res, 401, {
+        ok: false,
+        code: 'session-required',
+        error: 'this route acts on the saved Zhihu session and needs an authenticated DSH session',
+      });
+      return false;
+    }
+    if (verdict === 403) {
+      sendJson(res, 403, { ok: false, code: 'forbidden', error: 'forbidden' });
+      return false;
+    }
+    // 503 (no usable verifier in the harness) and anything unexpected fail closed.
+    sendJson(res, 503, {
       ok: false,
-      code: rejection === 401 ? 'session-required' : 'forbidden',
-      error:
-        rejection === 401
-          ? 'this route acts on the saved Zhihu session and needs an authenticated DSH session'
-          : 'forbidden',
+      code: 'session-unavailable',
+      error: 'the DSH session check could not complete',
     });
     return false;
   }
